@@ -1,0 +1,52 @@
+
+
+This project implements a prototype wildfire detection pipeline using NASA MODIS Level 1B satellite data. The goal is to simulate onboard fire detection for a low-earth orbit satellite by identifying thermal anomalies in single-swath imagery.
+
+
+
+The system processes MODIS HDF files and detects potential wildfire pixels using:
+
+- Long-wave infrared (LWIR) bands (~3.9 µm, 11 µm)
+- Short-wave infrared (SWIR) band (~1.6 µm)
+- Radiance → brightness temperature conversion (Planck inversion)
+- Contextual anomaly detection using local spatial statistics
+- Multi-band thresholding to reduce false positives
+- Connected-component filtering to isolate meaningful fire regions
+
+
+1. Load MODIS Level 1B data (HDF format)
+2. Calibrate radiance and reflectance using dataset metadata
+3. Convert thermal radiance to brightness temperature (Kelvin)
+4. Compute:
+   - Absolute temperature thresholds
+   - Thermal contrast (ΔT between bands)
+   - Local anomaly detection (spatial window)
+5. Validate detections using SWIR anomaly
+6. Filter noise using connected component analysis
+
+
+- Process single swath images (~2030 x 1354 pixels)
+- Run detection across multiple consecutive swaths
+- Output number of detected fire pixels per swath
+
+
+This project is inspired by real-world satellite fire detection systems (e.g., NASA MODIS/VIIRS and FIRMS). It explores how onboard processing could reduce detection latency by identifying fires directly from raw imagery instead of relying on ground-based processing.
+
+
+
+- Python
+- NumPy
+- SciPy (ndimage)
+- PyHDF
+- Matplotlib
+
+
+- Detection thresholds are based on known MODIS fire detection heuristics
+- Results depend heavily on calibration accuracy and scene conditions
+- Most swaths contain no fires; the system is designed to reject false positives
+
+
+- Add geolocation (lat/lon) to detections
+- Track fire events across multiple swaths
+- Integrate temporal differencing (multi-frame detection)
+- Optimize for real-time / onboard processing

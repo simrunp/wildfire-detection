@@ -6,9 +6,7 @@ from pyhdf.SD import SD, SDC
 from scipy.ndimage import uniform_filter, label
 import matplotlib.pyplot as plt
 import os
-# -------------------------------
-# 0. Calibrate Radiance 
-# -------------------------------
+# calibrate radiance
 def calibrate_radiance(dataset, data):
     scales = dataset.attributes()['radiance_scales']
     offsets = dataset.attributes()['radiance_offsets']
@@ -19,6 +17,7 @@ def calibrate_radiance(dataset, data):
         calibrated[i] = scales[i] * (data[i] - offsets[i])
     
     return calibrated
+# calibrate reflectance
 def calibrate_reflectance(dataset, data):
     scales = dataset.attributes()['reflectance_scales']
     offsets = dataset.attributes()['reflectance_offsets']
@@ -29,9 +28,7 @@ def calibrate_reflectance(dataset, data):
         calibrated[i] = scales[i] * (data[i] - offsets[i])
     
     return calibrated
-# -------------------------------
-# 1. LOAD MODIS BANDS
-# -------------------------------
+# load and calibrate MODIS data
 def load_modis(file_path):
     hdf = SD(file_path, SDC.READ)
 
@@ -51,9 +48,8 @@ def load_modis(file_path):
     return b20, b31, swir_band
 
 
-# -------------------------------
-# 2. BRIGHTNESS TEMPERATURE (Planck inversion)
-# -------------------------------
+# planck inversion constants
+
 # MODIS calibration constants
 C1 = 1.191042e8   # µW / (m² · sr · cm⁻⁴)
 C2 = 1.4387752e4  # µm · K
@@ -65,9 +61,7 @@ def radiance_to_bt(radiance, vc):
     return (C2 * vc) / np.log((C1 * vc**3 / radiance) + 1.0)
 
 
-# -------------------------------
-# 3. FIRE DETECTION (SINGLE SWATH)
-# -------------------------------
+# single-swath fire detection logic
 def detect_fire(file_path):
 
     b20, b31, swir = load_modis(file_path)
@@ -78,9 +72,7 @@ def detect_fire(file_path):
     t20 = radiance_to_bt(b20, VC_B20)
     t31 = radiance_to_bt(b31, VC_B31)
 
-    # -------------------------------
-    # 4. CORE FIRE SIGNALS
-    # -------------------------------
+    # fire signals
 
     # (A) Thermal contrast
     delta_t = t20 - t31
@@ -104,14 +96,10 @@ def detect_fire(file_path):
     swir_std  = np.sqrt(np.clip(swir_sq - swir_mean**2, 0, None))
     swir_anomaly = swir > (swir_mean + 3 * swir_std)
 
-    # -------------------------------
-    # 5. COMBINE LOGIC
-    # -------------------------------
+  
     fire_mask = absolute_hot & thermal_anomaly & high_contrast & swir_anomaly
 
-    # -------------------------------
-    # 6. REMOVE NOISE (CONNECTED COMPONENTS)
-    # -------------------------------
+    # remove noise 
     labeled, num = label(fire_mask)
 
     sizes = np.bincount(labeled.ravel())
@@ -121,9 +109,7 @@ def detect_fire(file_path):
 
     clean_mask = np.isin(labeled, valid_labels)
 
-    # -------------------------------
-    # OUTPUT STATS
-    # -------------------------------
+
     print("Raw fire pixels:", np.sum(fire_mask))
     print("Clean fire pixels:", np.sum(clean_mask))
     print("Detected fire regions:", num)
@@ -131,9 +117,7 @@ def detect_fire(file_path):
     return clean_mask, t20
 
 
-# -------------------------------
-# 7. RUN + VISUALIZE
-# -------------------------------
+# run and visualize 
 if __name__ == "__main__":
 
     data_folder = "data"
@@ -169,9 +153,6 @@ if __name__ == "__main__":
             print(f"Error processing {file}: {e}")
             continue
 
-    # -------------------------------
-    # SUMMARY
-    # -------------------------------
     print("\n===== FINAL RESULTS =====")
     for r in results:
         print(f"{r['file']}: {r['fire_pixels']} fire pixels")

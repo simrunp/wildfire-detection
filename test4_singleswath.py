@@ -15,7 +15,7 @@ def load_modis(file_path):
 
     # LWIR emissive bands (contains thermal IR)
     lwir = hdf.select("EV_1KM_Emissive").get()
-
+    
     # SWIR / reflective bands
     swir = hdf.select("EV_500_Aggr1km_RefSB").get()
 

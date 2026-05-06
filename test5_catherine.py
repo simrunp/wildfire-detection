@@ -111,7 +111,7 @@ def detect_fire(file_path):
 # -------------------------------
 if __name__ == "__main__":
 
-    file_path = "MOD021KM.A2026119.2315.061.2026119235638.NRT.hdf"
+    file_path = "MOD021KM.A2026122.0655.061.2026122080341.NRT.hdf"
 
     fire_mask, thermal = detect_fire(file_path)
 

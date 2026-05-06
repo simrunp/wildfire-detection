@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+
+# Ignore large satellite data
+*.hdf
+*.h5
+
+# OS files
+.DS_Store

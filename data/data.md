@@ -1,0 +1,1 @@
+This data covers a few minutes which has imaging over egypt, downwards (three continuous swaths) 
