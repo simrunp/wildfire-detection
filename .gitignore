@@ -5,6 +5,7 @@ __pycache__/
 # Ignore large satellite data
 *.hdf
 *.h5
+*.nc
 
 # OS files
 .DS_Store
