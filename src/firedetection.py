@@ -329,4 +329,9 @@ def _plot_result(title, t20, fire_mask, delta=None):
 
 
 if __name__ == "__main__":
-    run_pipeline(data_folder="data", visualize=True)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data", default="data/creek_fire", help="Folder of .hdf files to process")
+    parser.add_argument("--no-viz", action="store_true", help="Skip visualization")
+    args = parser.parse_args()
+    run_pipeline(data_folder=args.data, visualize=not args.no_viz)

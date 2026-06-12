@@ -6,10 +6,12 @@ On first run you will be prompted for your username and password, which are
 saved to ~/.netrc so you only need to do this once.
 
 Usage:
-    python download_modis.py                        # downloads default fire event
-    python download_modis.py --event creek_fire     # specific event
+    python download_modis.py                        # downloads Creek Fire → data/creek_fire/
+    python download_modis.py --event bootleg_fire   # downloads → data/bootleg_fire/
     python download_modis.py --list                 # show all built-in events
-    python download_modis.py --lat 37.5 --lon -119.5 --date 2020-09-09  # custom
+    python download_modis.py --lat 37.5 --lon -119.5 --date 2020-09-09  # custom → data/custom/
+
+Each event downloads into its own subfolder so files from different fires are never mixed.
 """
 
 import argparse
@@ -108,17 +110,20 @@ def main():
         return
 
     if args.lat and args.lon and args.date:
-        search_and_download(args.date, args.lat, args.lon, args.outdir, args.radius)
+        # For custom coordinates, use --outdir or default to data/custom
+        out = args.outdir if args.outdir != "data" else "data/custom"
+        search_and_download(args.date, args.lat, args.lon, out, args.radius)
     elif args.event:
         ev = FIRE_EVENTS[args.event]
         print(f"\nEvent: {ev['desc']}")
-        search_and_download(ev["date"], ev["lat"], ev["lon"], args.outdir, args.radius)
+        out = args.outdir if args.outdir != "data" else f"data/{args.event}"
+        search_and_download(ev["date"], ev["lat"], ev["lon"], out, args.radius)
     else:
         # Default: Creek Fire — a reliable, well-studied event
         ev = FIRE_EVENTS["creek_fire"]
         print(f"No event specified. Defaulting to: {ev['desc']}")
         print("Run with --list to see all available events, or --help for custom coordinates.")
-        search_and_download(ev["date"], ev["lat"], ev["lon"], args.outdir, args.radius)
+        search_and_download(ev["date"], ev["lat"], ev["lon"], "data/creek_fire", args.radius)
 
 
 if __name__ == "__main__":

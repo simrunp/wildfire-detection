@@ -34,20 +34,20 @@ Consecutive swaths over the same region, separated by ~5 minutes, form a tempora
 Requires a free NASA EarthData account: [urs.earthdata.nasa.gov](https://urs.earthdata.nasa.gov/users/new)
 
 ```bash
-# Download MODIS swaths for the 2020 Creek Fire (default)
+# Download MODIS swaths for the 2020 Creek Fire (default) → data/creek_fire/
 python download_modis.py
 
 # List all built-in fire events
 python download_modis.py --list
 
-# Download a specific named event
-python download_modis.py --event dixie_fire
+# Download a specific named event → data/bootleg_fire/
+python download_modis.py --event bootleg_fire
 
-# Download for a custom location and date
+# Download for a custom location and date → data/custom/
 python download_modis.py --lat 37.5 --lon -119.5 --date 2020-09-09
 ```
 
-Built-in events include the Creek Fire (2020), Dixie Fire (2021), Bootleg Fire (2021), Camp Fire (2018), and Rim Fire (2013) — all large California/Oregon fires with confirmed MODIS detections.
+Each event downloads into its own subfolder so files from different fires are never mixed. Built-in events include the Creek Fire (2020), Dixie Fire (2021), Bootleg Fire (2021), Camp Fire (2018), and Rim Fire (2013) — all large California/Oregon fires with confirmed MODIS detections.
 
 ---
 
@@ -65,10 +65,16 @@ pip install numpy scipy pyhdf matplotlib earthaccess
 
 ```bash
 source venv/bin/activate
-python src/firedetection.py
+
+# Run on a downloaded event
+python src/firedetection.py --data data/creek_fire
+python src/firedetection.py --data data/bootleg_fire
+
+# Skip the visualization (faster, just prints results)
+python src/firedetection.py --data data/creek_fire --no-viz
 ```
 
-The pipeline loads all `.hdf` files from `data/`, runs detection, prints a summary, and displays a three-panel visualization per swath: brightness temperature, inter-frame delta, and confirmed fire pixels overlaid in orange.
+The pipeline loads all `.hdf` files from the specified folder, runs detection, prints a summary, and displays a three-panel visualization per swath: brightness temperature, inter-frame delta, and confirmed fire pixels overlaid in orange.
 
 **Example output (Creek Fire, September 9, 2020):**
 ```
@@ -106,10 +112,12 @@ Events confirmed : 2
 ```
 wildfire_project/
 ├── src/
-│   └── firedetection.py     # Detection pipeline
+│   └── firedetection.py        # Detection pipeline
 ├── data/
-│   └── *.hdf                # MODIS swaths (download separately)
-├── download_modis.py        # NASA EarthData downloader
+│   ├── creek_fire/             # MODIS swaths per event (download separately)
+│   ├── bootleg_fire/
+│   └── ...
+├── download_modis.py           # NASA EarthData downloader
 └── README.md
 ```
 
