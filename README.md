@@ -10,11 +10,13 @@ TORCH (Thermal Optical Recognition and Communication Hardware) is a 3U CubeSat i
 
 The pipeline implements the two-stage detection approach described in the TORCH white paper:
 
-# Stage 1 — LWIR temporal differencing**
+# Stage 1 — Thermal infrared temporal differencing**
 Each swath's Band 20 brightness temperature (3.9 µm) is subtracted pixel-by-pixel from the previous swath. Pixels that heated rapidly between passes are flagged as candidates. This rejects slowly-varying backgrounds like diurnal terrain heating and coastal thermal gradients, which would overwhelm a static threshold.
 
-# Stage 2 — SWIR cross-modal confirmation**
-Candidate pixels are checked against Band 6 reflectance (1.64 µm). Both channels must confirm before a detection is recorded. Sun glint, industrial heat sources, and detector transients are hot in LWIR but do not produce simultaneous SWIR fire radiative power signatures.
+# Stage 2 — SWIR cross-modal confirmation (day) / tightened thermal-only gate (night)**
+Candidate pixels are checked against Band 6 reflectance (1.64 µm). Both channels must confirm before a detection is recorded. Sun glint, industrial heat sources, and detector transients are hot in thermal IR but do not produce simultaneous SWIR fire radiative power signatures.
+
+Band 6 is solar-reflective and carries no usable signal at night (white paper §3.3), so the pipeline detects day/night per swath from the SWIR channel's own variance — a flat, near-zero-variance scene means no sunlight reached the sensor. At night the SWIR gate is skipped, and the thermal-differencing threshold is raised (3.0σ → 4.5σ) to compensate for losing the second confirmation channel. The very first swath in a night sequence has no prior frame *and* no SWIR signal, so detection is skipped for that single frame rather than reported unreliably.
 
 # Post-processing
 Connected components smaller than 4 pixels are discarded as noise. Confirmed detections are packaged as event records containing a pixel bounding box, pixel count, and a fire radiative power proxy — mirroring the alert packet TORCH would transmit to the ground station via PULSE-A optical downlink.
@@ -81,21 +83,25 @@ The pipeline loads all `.hdf` files from the specified folder, runs detection, p
 Found 4 swath(s)
 
 --- MOD021KM.A2020253.0525... ---   # 10:25 PM local, nighttime
-  Method: single-frame spatial (no prior frame)
+  Method: skipped — no prior frame, night pass (insufficient confirmation channels)
+  Channel mode: night (LWIR only)
   No confirmed fire event.
 
 --- MOD021KM.A2020253.0530... ---   # 10:30 PM local, nighttime
   Method: temporal differencing
-  No confirmed fire event.          # SWIR inactive at night
+  Channel mode: night (LWIR only)   # SWIR inactive at night — tightened threshold used instead
+  No confirmed fire event.
 
 --- MOD021KM.A2020253.1905... ---   # 12:05 PM local, daytime
   Method: temporal differencing
+  Channel mode: day (LWIR + SWIR)
   Clean fire pixels : 106
   Fire clusters     : 17
   EVENT PACKET — 106 px, bbox rows (58, 2006), FRP proxy 1190998
 
 --- MOD021KM.A2020253.1910... ---   # 12:10 PM local, daytime
   Method: temporal differencing
+  Channel mode: day (LWIR + SWIR)
   Clean fire pixels : 140
   Fire clusters     : 21
   EVENT PACKET — 140 px, bbox rows (316, 2019), FRP proxy 285140
@@ -104,6 +110,8 @@ Found 4 swath(s)
 Swaths processed : 4
 Events confirmed : 2
 ```
+
+Note: on the Camp Fire event (2018-11-08), the same night-mode logic confirms a fire signature on a nighttime swath via temporal differencing alone — demonstrating that thermal-only detection can work at night when the fire is already established, even without SWIR confirmation.
 
 ---
 

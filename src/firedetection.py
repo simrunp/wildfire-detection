@@ -40,6 +40,15 @@ ABS_TEMP_K       = 320.0
 DELTA_T_MIN      = 10.0
 MIN_CLUSTER_SIZE = 4
 
+# Nighttime handling — SWIR is a reflective band and carries no signal without
+# sunlight (white paper §3.3). At night MODIS fills the SWIR band with a
+# constant invalid-count value rather than zero, so a mean-reflectance check
+# is unreliable — a flat fill value can sit anywhere. Real daytime reflectance
+# varies pixel-to-pixel with terrain and cloud; a fill value does not. We use
+# the scene's SWIR standard deviation as the day/night signal instead.
+NIGHT_REFLECTANCE_STD_THRESH = 0.005
+NIGHT_DELTA_SIGMA             = 4.5
+
 
 # ---------------------------------------------------------------------------
 # Step 1: Load and calibrate raw MODIS HDF data.
@@ -112,6 +121,14 @@ def _spatial_anomaly(band, window, sigma):
     return band > (local_mean + sigma * local_std)
 
 
+def _is_daytime(swir):
+    # SWIR (Band 6) is a solar-reflective band — at night it carries no
+    # signal and MODIS fills it with a flat invalid-count value. Real
+    # daytime reflectance varies across the scene; a fill value has
+    # ~zero variance, so std dev is a reliable day/night proxy.
+    return np.nanstd(swir) > NIGHT_REFLECTANCE_STD_THRESH
+
+
 # ---------------------------------------------------------------------------
 # Step 2b: Single-frame fallback (used only for the first swath).
 #
@@ -121,7 +138,12 @@ def _spatial_anomaly(band, window, sigma):
 # ---------------------------------------------------------------------------
 
 def detect_single(t20, t31, swir):
-    """Spatial-only detection: LWIR contextual anomaly gated by SWIR confirmation."""
+    """Spatial-only detection: LWIR contextual anomaly gated by SWIR confirmation (day only).
+
+    At night this fallback is skipped entirely (see run_pipeline) — with no SWIR
+    cross-check and no prior frame to difference against, a single LWIR frame
+    has no way to distinguish real fire from scan-edge calibration artifacts.
+    """
     delta_t = t20 - t31
 
     # LWIR candidate: statistically anomalous, above absolute floor, with fire-like B20/B31 contrast
@@ -148,26 +170,36 @@ def detect_single(t20, t31, swir):
 # produce small deltas and are ignored. A pixel that jumped by >3σ in a single
 # ~5-minute inter-swath interval is characteristic of ignition.
 #
-# SWIR is only queried after LWIR raises a candidate — this is the two-stage
-# confirmation gate from the white paper. Industrial heat sources and sun glint
-# are hot in LWIR but do not produce simultaneous SWIR FRP signatures.
+# SWIR is only queried after LWIR raises a candidate, and only during the day —
+# this is the two-stage confirmation gate from the white paper. Industrial heat
+# sources and sun glint are hot in LWIR but do not produce simultaneous SWIR
+# FRP signatures. At night (white paper §3.3) SWIR carries no signal at all,
+# so the pipeline falls back to a tightened LWIR-only candidate mask.
 # ---------------------------------------------------------------------------
 
 def detect_temporal(t20_curr, t31_curr, swir_curr, t20_prev):
-    """Inter-frame delta detection with SWIR cross-modal validation."""
+    """Inter-frame delta detection: SWIR cross-modal validation by day, LWIR-only at night."""
 
     # Inter-frame thermal delta: how much did each pixel heat up since last pass?
     delta = t20_curr - t20_prev
+    daytime = _is_daytime(swir_curr)
+
+    # Night pass: no SWIR signal available, so tighten the LWIR-only threshold
+    # to compensate for losing the second confirmation channel.
+    sigma = DELTA_SIGMA if daytime else NIGHT_DELTA_SIGMA
 
     # Flag pixels where the delta is anomalously large relative to local neighborhood
     lwir_candidate = (
-        _spatial_anomaly(delta, SPATIAL_WINDOW, DELTA_SIGMA) &
+        _spatial_anomaly(delta, SPATIAL_WINDOW, sigma) &
         (delta > 0)  # warming only — cooling anomalies are not fire
     )
 
     # Absolute physical guards: must be genuinely hot and show fire-like spectral contrast
     delta_t        = t20_curr - t31_curr
     lwir_candidate = lwir_candidate & (t20_curr > ABS_TEMP_K) & (delta_t > DELTA_T_MIN)
+
+    if not daytime:
+        return lwir_candidate, delta
 
     # SWIR confirmation gate: only evaluate where LWIR already flagged a candidate
     swir_confirmed = np.zeros_like(lwir_candidate)
@@ -260,17 +292,28 @@ def run_pipeline(data_folder="data", visualize=True):
     for i, (fname, t20, t31, swir) in enumerate(frames):
         print(f"--- {fname} ---")
 
+        daytime = _is_daytime(swir)
+        channel_mode = "day (LWIR + SWIR)" if daytime else "night (LWIR only)"
+
         if i > 0 and frames[i-1][1].shape == t20.shape:
             raw_mask, delta = detect_temporal(t20, t31, swir, frames[i-1][1])
             method = "temporal differencing"
-        else:
+        elif daytime:
             raw_mask = detect_single(t20, t31, swir)
             delta    = None
             method   = "single-frame spatial (no prior frame)"
+        else:
+            # No prior frame and no SWIR signal at night — a single LWIR frame
+            # has no way to reject calibration artifacts, so we skip detection
+            # rather than report unreliable results.
+            raw_mask = np.zeros(t20.shape, dtype=bool)
+            delta    = None
+            method   = "skipped — no prior frame, night pass (insufficient confirmation channels)"
 
         clean_mask, n_clusters = _cluster_filter(raw_mask, MIN_CLUSTER_SIZE)
 
         print(f"  Method            : {method}")
+        print(f"  Channel mode      : {channel_mode}")
         print(f"  Raw fire pixels   : {int(np.sum(raw_mask))}")
         print(f"  Clean fire pixels : {int(np.sum(clean_mask))}")
         print(f"  Fire clusters     : {n_clusters}")
