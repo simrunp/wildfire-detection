@@ -10,10 +10,10 @@ TORCH (Thermal Optical Recognition and Communication Hardware) is a 3U CubeSat i
 
 The pipeline implements the two-stage detection approach described in the TORCH white paper:
 
-# ** Stage 1 — Thermal infrared temporal differencing**
+# Stage 1 — Thermal infrared temporal differencing 
 Each swath's Band 20 brightness temperature (3.9 µm) is subtracted pixel-by-pixel from the previous swath. Pixels that heated rapidly between passes are flagged as candidates. This rejects slowly-varying backgrounds like diurnal terrain heating and coastal thermal gradients, which would overwhelm a static threshold.
 
-# ** Stage 2 — SWIR cross-modal confirmation (day) / tightened thermal-only gate (night)**
+#  Stage 2 — SWIR cross-modal confirmation (day) / tightened thermal-only gate (night) 
 Candidate pixels are checked against Band 6 reflectance (1.64 µm). Both channels must confirm before a detection is recorded. Sun glint, industrial heat sources, and detector transients are hot in thermal IR but do not produce simultaneous SWIR fire radiative power signatures.
 
 Band 6 is solar-reflective and carries no usable signal at night (white paper §3.3), so the pipeline detects day/night per swath from the SWIR channel's own variance — a flat, near-zero-variance scene means no sunlight reached the sensor. At night the SWIR gate is skipped, and the thermal-differencing threshold is raised (3.0σ → 4.5σ) to compensate for losing the second confirmation channel. The very first swath in a night sequence has no prior frame *and* no SWIR signal, so detection is skipped for that single frame rather than reported unreliably.
